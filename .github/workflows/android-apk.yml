@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Android Release APKs
 
 on:
   workflow_dispatch:
@@ -8,22 +8,17 @@ on:
         required: true
         default: "1.14.0-fork.1"
         type: string
-  push:
-    branches:
-      - testing
-    paths:
-      - ".github/workflows/android-apk.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  android-apk:
-    name: Android APK only
+  android-release:
+    name: Signed Android Release APKs
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
-      BUILD_VERSION: ${{ inputs.version || '1.14.0-fork.1' }}
+      BUILD_VERSION: ${{ inputs.version }}
 
     steps:
       - name: Checkout latest sing-box core
@@ -52,6 +47,8 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+          cache: gradle
+          cache-dependency-path: clients/android/**/*.gradle*
 
       - name: Setup Android NDK
         id: ndk
@@ -59,15 +56,25 @@ jobs:
         with:
           ndk-version: r28
 
-      - name: Restore persistent debug signing key
-        uses: actions/cache@v4
-        with:
-          path: ~/.android/debug.keystore
-          key: sfafork-debug-keystore-v1
+      - name: Restore release signing key
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "ANDROID_KEYSTORE_BASE64 secret is missing" >&2
+            exit 1
+          fi
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > clients/android/app/release.keystore
+          chmod 600 clients/android/app/release.keystore
 
       - name: Set application version
         shell: bash
         run: |
+          if [[ ! "$BUILD_VERSION" =~ ^[0-9A-Za-z][0-9A-Za-z._-]*$ ]]; then
+            echo "Invalid version: $BUILD_VERSION" >&2
+            exit 1
+          fi
           git tag -f -- "v${BUILD_VERSION}"
           version_code=$((100000 + GITHUB_RUN_NUMBER))
           sed -i "s/^VERSION_NAME=.*/VERSION_NAME=${BUILD_VERSION}/" clients/android/version.properties
@@ -82,24 +89,78 @@ jobs:
           export PATH="$PATH:$(go env GOPATH)/bin"
           make lib_android
           mkdir -p clients/android/app/libs
-          cp libbox.aar libbox-legacy.aar clients/android/app/libs/
+          cp libbox.aar clients/android/app/libs/
 
-      - name: Build universal APKs
+      - name: Build signed release APKs
         shell: bash
         working-directory: clients/android
         env:
           ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+          LOCAL_PROPERTIES: ${{ secrets.LOCAL_PROPERTIES }}
         run: |
-          ./gradlew \
-            :app:assembleOtherDebug \
-            :app:assembleOtherLegacyDebug \
-            --no-daemon
+          if [ -z "$LOCAL_PROPERTIES" ]; then
+            echo "LOCAL_PROPERTIES secret is missing" >&2
+            exit 1
+          fi
+          ./gradlew :app:assembleOtherRelease --no-daemon
 
-      - name: Upload APK artifacts
+      - name: Collect and verify four ABI APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          mkdir -p dist
+          abis=(armeabi-v7a arm64-v8a x86 x86_64)
+          for abi in "${abis[@]}"; do
+            matches=(clients/android/app/build/outputs/apk/other/release/*-"${abi}".apk)
+            if [ "${#matches[@]}" -ne 1 ]; then
+              echo "Expected exactly one APK for ${abi}, found ${#matches[@]}" >&2
+              exit 1
+            fi
+            cp "${matches[0]}" dist/
+          done
+
+          apks=(dist/*.apk)
+          if [ "${#apks[@]}" -ne 4 ]; then
+            echo "Expected exactly four APKs, found ${#apks[@]}" >&2
+            exit 1
+          fi
+          if compgen -G 'dist/*universal*.apk' > /dev/null; then
+            echo "Universal APK must not be published" >&2
+            exit 1
+          fi
+
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)
+          if [ -z "$APKSIGNER" ]; then
+            echo "apksigner was not found" >&2
+            exit 1
+          fi
+          for apk in "${apks[@]}"; do
+            "$APKSIGNER" verify --verbose --print-certs "$apk"
+          done
+          ls -lh dist/*.apk
+
+      - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: sing-box-fork-android-apks
+          name: sing-box-fork-release-apks-${{ inputs.version }}
           if-no-files-found: error
-          path: |
-            clients/android/app/build/outputs/apk/other/debug/*-universal*.apk
-            clients/android/app/build/outputs/apk/otherLegacy/debug/*-universal*.apk
+          retention-days: 30
+          path: dist/*.apk
+
+      - name: Publish GitHub prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          tag="v${BUILD_VERSION}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" dist/*.apk --clobber
+          else
+            gh release create "$tag" dist/*.apk \
+              --target "$GITHUB_SHA" \
+              --title "sing-box Fork ${BUILD_VERSION}" \
+              --notes "Release-signed Android APKs for arm64-v8a, armeabi-v7a, x86_64, and x86. Minimum Android version: 6.0 (API 23)." \
+              --prerelease
+          fi
