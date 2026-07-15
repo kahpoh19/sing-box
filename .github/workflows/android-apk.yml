@@ -8,6 +8,11 @@ on:
         required: true
         default: "1.14.0-fork.1"
         type: string
+  push:
+    branches:
+      - testing
+    paths:
+      - ".github/workflows/android-apk.yml"
 
 permissions:
   contents: read
