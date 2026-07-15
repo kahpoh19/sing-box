@@ -1,0 +1,98 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version without v, for example 1.14.0-fork.1"
+        required: true
+        default: "1.14.0-fork.1"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  android-apk:
+    name: Android APK only
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout latest sing-box core
+        uses: actions/checkout@v5
+        with:
+          repository: SagerNet/sing-box
+          ref: testing
+          fetch-depth: 0
+          submodules: false
+
+      - name: Checkout kahpoh19 Android fork
+        uses: actions/checkout@v5
+        with:
+          repository: kahpoh19/sing-box-for-android
+          ref: dev
+          path: clients/android
+          submodules: recursive
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.11"
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Android NDK
+        id: ndk
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r28
+
+      - name: Restore persistent debug signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: sfafork-debug-keystore-v1
+
+      - name: Set application version
+        shell: bash
+        run: |
+          git tag -f -- "v${{ inputs.version }}"
+          version_code=$((100000 + GITHUB_RUN_NUMBER))
+          sed -i "s/^VERSION_NAME=.*/VERSION_NAME=${{ inputs.version }}/" clients/android/version.properties
+          sed -i "s/^VERSION_CODE=.*/VERSION_CODE=${version_code}/" clients/android/version.properties
+
+      - name: Build Android libbox
+        shell: bash
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+        run: |
+          make lib_install
+          export PATH="$PATH:$(go env GOPATH)/bin"
+          make lib_android
+          mkdir -p clients/android/app/libs
+          cp libbox.aar libbox-legacy.aar clients/android/app/libs/
+
+      - name: Build universal APKs
+        shell: bash
+        working-directory: clients/android
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+        run: |
+          ./gradlew \
+            :app:assembleOtherDebug \
+            :app:assembleOtherLegacyDebug \
+            --no-daemon
+
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sing-box-fork-android-apks
+          if-no-files-found: error
+          path: |
+            clients/android/app/build/outputs/apk/other/debug/*-universal*.apk
+            clients/android/app/build/outputs/apk/otherLegacy/debug/*-universal*.apk
