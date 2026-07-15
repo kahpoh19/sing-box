@@ -22,6 +22,8 @@ jobs:
     name: Android APK only
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    env:
+      BUILD_VERSION: ${{ inputs.version || '1.14.0-fork.1' }}
 
     steps:
       - name: Checkout latest sing-box core
@@ -66,9 +68,9 @@ jobs:
       - name: Set application version
         shell: bash
         run: |
-          git tag -f -- "v${{ inputs.version }}"
+          git tag -f -- "v${BUILD_VERSION}"
           version_code=$((100000 + GITHUB_RUN_NUMBER))
-          sed -i "s/^VERSION_NAME=.*/VERSION_NAME=${{ inputs.version }}/" clients/android/version.properties
+          sed -i "s/^VERSION_NAME=.*/VERSION_NAME=${BUILD_VERSION}/" clients/android/version.properties
           sed -i "s/^VERSION_CODE=.*/VERSION_CODE=${version_code}/" clients/android/version.properties
 
       - name: Build Android libbox
