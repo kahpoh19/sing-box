@@ -11,8 +11,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  BUILD_VERSION: "1.13.14-matchaproxy.1"
-  VERSION_CODE: "1131401"
+  BUILD_VERSION: "1.13.14-matchaproxy.2"
+  VERSION_CODE: "1131402"
   CORE_COMMIT: "25a600db24f7680ad9806ce5427bd0ab8afe1114"
   ANDROID_COMMIT: "aa686b2f1ac4ca9e888d4d068ce79ee1abd309fc"
   EXPECTED_CERT_SHA256: "0451ae93e6dfd6d275f17cec3720c69445e7fe8ecb9e5c97b9da82d49ce68cf5"
@@ -99,7 +99,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$BUILD_VERSION" = "1.13.14-matchaproxy.1"
+          test "$BUILD_VERSION" = "1.13.14-matchaproxy.2"
           git -C core tag -f "v${BUILD_VERSION}" "$CORE_COMMIT"
           sed -i "s/^VERSION_NAME=.*/VERSION_NAME=${BUILD_VERSION}/" core/clients/android/version.properties
           sed -i "s/^VERSION_CODE=.*/VERSION_CODE=${VERSION_CODE}/" core/clients/android/version.properties
@@ -272,9 +272,9 @@ jobs:
           - sing-box core v1.13.14: 25a600db24f7680ad9806ce5427bd0ab8afe1114
           - Android client: aa686b2f1ac4ca9e888d4d068ce79ee1abd309fc
 
-          Modifications dated 2026-07-16 include the independent MatchaProxy name, package ID, original matcha-cake icon artwork, deep-link namespace, updater endpoint and ABI selection, plus removal of universal and Android 5 legacy APK outputs. Four signed split APKs are provided: arm64-v8a, armeabi-v7a, x86_64, and x86. Minimum Android version: 6.0 (API 23).
+          Modifications dated 2026-07-16 include the independent MatchaProxy name, package ID, original matcha-cake icon artwork with balanced adaptive-icon safe-area spacing, deep-link namespace, updater endpoint and ABI selection, plus removal of universal and Android 5 legacy APK outputs. Four signed split APKs are provided: arm64-v8a, armeabi-v7a, x86_64, and x86. Minimum Android version: 6.0 (API 23).
 
-          Licensed under GPL-3.0-or-later. The attached MatchaProxy-1.13.14-matchaproxy.1-source.tar.gz is the complete corresponding source for these APKs and includes the exact build workflow, modification patch, icon source artwork, notices, upstream core source, and patched Android source. Verify downloads with SHA256SUMS.
+          Licensed under GPL-3.0-or-later. The attached MatchaProxy-1.13.14-matchaproxy.2-source.tar.gz is the complete corresponding source for these APKs and includes the exact build workflow, modification patch, icon source artwork, notices, upstream core source, and patched Android source. Verify downloads with SHA256SUMS.
           EOF
 
           if gh release view "$tag" >/dev/null 2>&1; then

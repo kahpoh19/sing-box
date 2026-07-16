@@ -16,8 +16,9 @@ The Android changes are recorded in
 - Independent product name, package ID (`io.github.kahpoh19.matchaproxy`), APK prefix,
   deep-link scheme, notification/VPN labels, and privileged data names.
 - Original matcha-cake launcher artwork and derived launcher, adaptive, round, store, and
-  notification icon assets. The approved high-resolution artwork is preserved under
-  `.github/assets/`.
+  notification icon assets. The launcher artwork is scaled within the white canvas to
+  provide balanced safe-area spacing under Android rounded-square masks. The approved
+  high-resolution artwork is preserved under `.github/assets/`.
 - A source-code link and update endpoint that point to this distribution.
 - Device-ABI-aware update selection for split APK releases.
 - Four ABI APKs (`arm64-v8a`, `armeabi-v7a`, `x86_64`, and `x86`) with no universal

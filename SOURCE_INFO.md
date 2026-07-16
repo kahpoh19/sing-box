@@ -1,4 +1,4 @@
-# MatchaProxy 1.13.14-matchaproxy.1 source and build information
+# MatchaProxy 1.13.14-matchaproxy.2 source and build information
 
 The release APKs correspond exactly to:
 
@@ -10,7 +10,7 @@ The release APKs correspond exactly to:
 - Approved icon source and launcher master: `.github/assets/` in this repository.
 - Build recipe: `.github/workflows/android-apk.yml` in this repository.
 
-The attached release archive `MatchaProxy-1.13.14-matchaproxy.1-source.tar.gz` contains
+The attached release archive `MatchaProxy-1.13.14-matchaproxy.2-source.tar.gz` contains
 the complete upstream core tree, the complete Android tree with the MatchaProxy patch
 already applied, the unmodified patch file, both icon source files, this notice, the
 modification notice, and the exact GitHub Actions workflow used for the binaries.
